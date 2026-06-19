@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanning Laser Turret — How It Works</title>
+<style>
+  :root{
+    --bg:#0a0e0d;
+    --panel:#101614;
+    --panel-2:#0d1311;
+    --line:#1f2c28;
+    --line-bright:#2c3d37;
+    --phos:#46e08a;        /* phosphor green — RUNNING */
+    --phos-dim:#2a7a52;
+    --amber:#f5c518;       /* amber/yellow — STOPPED */
+    --amber-dim:#7a6410;
+    --laser:#ff3b30;       /* laser dot only */
+    --ink:#cfe3da;
+    --ink-dim:#7d948c;
+    --ink-faint:#566860;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:
+      radial-gradient(1200px 600px at 50% -10%, #0f1714 0%, var(--bg) 60%),
+      var(--bg);
+    color:var(--ink);font-family:var(--mono);
+    -webkit-font-smoothing:antialiased;line-height:1.55;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+
+  /* ---- header / hero ---- */
+  header{
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(70,224,138,.04),transparent);
+  }
+  .eyebrow{
+    font-size:11px;letter-spacing:.32em;text-transform:uppercase;
+    color:var(--phos-dim);margin:0 0 14px;display:flex;gap:10px;align-items:center;
+  }
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--phos-dim)}
+  h1{
+    font-family:var(--sans);font-weight:800;letter-spacing:-.02em;
+    font-size:clamp(30px,6vw,58px);line-height:1.02;margin:0 0 8px;color:#eafff4;
+  }
+  h1 .sub{display:block;color:var(--ink-dim);font-weight:500;font-size:clamp(14px,2.4vw,20px);
+    letter-spacing:0;margin-top:12px;font-family:var(--mono)}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center;
+    padding:46px 0 52px}
+  @media(max-width:820px){.hero-grid{grid-template-columns:1fr;gap:26px}}
+
+  /* ---- live sim ---- */
+  .scope{
+    position:relative;border:1px solid var(--line-bright);border-radius:14px;
+    background:
+      radial-gradient(120% 90% at 50% 110%, rgba(70,224,138,.07), transparent 60%),
+      var(--panel);
+    padding:14px;box-shadow:inset 0 0 60px rgba(0,0,0,.6),0 10px 40px rgba(0,0,0,.4);
+  }
+  .scope svg{display:block;width:100%;height:auto}
+  .scope-foot{display:flex;justify-content:space-between;align-items:center;
+    margin-top:10px;gap:12px;flex-wrap:wrap}
+  .leds{display:flex;gap:16px;align-items:center}
+  .led{display:flex;gap:7px;align-items:center;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--ink-faint)}
+  .dot{width:11px;height:11px;border-radius:50%;background:#1a221f;
+    box-shadow:inset 0 0 4px #000;transition:.18s}
+  .dot.green.on{background:var(--phos);box-shadow:0 0 12px var(--phos),0 0 3px #fff inset}
+  .dot.amber.on{background:var(--amber);box-shadow:0 0 12px var(--amber),0 0 3px #fff inset}
+  .led.active{color:var(--ink)}
+  .btn{
+    font-family:var(--mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+    color:#06120c;background:var(--phos);border:none;border-radius:8px;
+    padding:11px 20px;cursor:pointer;font-weight:700;transition:.15s;
+  }
+  .btn.stopped{background:var(--amber);color:#160f00}
+  .btn:hover{filter:brightness(1.12)}
+  .btn:focus-visible{outline:2px solid #fff;outline-offset:3px}
+  .hint{font-size:11px;color:var(--ink-faint);margin-top:8px;text-align:center;letter-spacing:.04em}
+  .readout{font-size:11px;color:var(--ink-dim);letter-spacing:.1em}
+  .readout b{color:var(--phos);font-weight:700}
+  .readout.stopped b{color:var(--amber)}
+
+  /* ---- sections ---- */
+  section{padding:54px 0;border-top:1px solid var(--line)}
+  .sec-head{display:flex;align-items:baseline;gap:16px;margin-bottom:26px}
+  .num{font-family:var(--sans);font-weight:800;font-size:13px;color:var(--phos-dim);
+    letter-spacing:.1em;border:1px solid var(--line-bright);border-radius:6px;
+    padding:4px 9px;flex:none}
+  h2{font-family:var(--sans);font-weight:750;font-size:clamp(21px,3.4vw,30px);
+    letter-spacing:-.01em;margin:0;color:#eafff4}
+  .lede{color:var(--ink-dim);max-width:62ch;font-size:15px}
+  p{font-size:14.5px}
+  strong{color:#eafff4;font-weight:700}
+  code{font-family:var(--mono);background:#0c1310;border:1px solid var(--line);
+    border-radius:4px;padding:1px 6px;color:var(--phos);font-size:.92em}
+
+  /* big idea callout */
+  .callout{border:1px solid var(--line-bright);border-left:3px solid var(--amber);
+    border-radius:10px;background:linear-gradient(180deg,rgba(245,197,24,.05),transparent);
+    padding:20px 22px;margin:8px 0}
+  .callout .tag{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);
+    margin:0 0 8px}
+
+  /* frame stepper */
+  .frame{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:start}
+  @media(max-width:760px){.frame{grid-template-columns:1fr}}
+  .steps{display:flex;flex-direction:column;gap:8px}
+  .step{display:flex;gap:13px;align-items:flex-start;border:1px solid var(--line);
+    border-radius:9px;padding:12px 13px;cursor:pointer;background:var(--panel-2);
+    transition:.16s;text-align:left;color:inherit;font-family:var(--mono);width:100%}
+  .step:hover{border-color:var(--line-bright)}
+  .step.active{border-color:var(--phos-dim);background:#0c1712;
+    box-shadow:0 0 0 1px var(--phos-dim) inset}
+  .step .k{font-family:var(--sans);font-weight:800;font-size:12px;color:var(--phos);
+    border:1px solid var(--phos-dim);border-radius:5px;padding:2px 7px;flex:none;margin-top:1px}
+  .step.stop .k{color:var(--amber);border-color:var(--amber-dim)}
+  .step .t{font-size:12.5px}
+  .step .t b{color:#eafff4;display:block;margin-bottom:2px;font-family:var(--sans);font-weight:700}
+  .detail{border:1px solid var(--line-bright);border-radius:11px;background:var(--panel);
+    padding:22px 24px;min-height:230px}
+  .detail h3{margin:0 0 4px;font-family:var(--sans);font-size:18px;color:#eafff4}
+  .detail .micro{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 16px}
+  .detail pre{margin:14px 0 0;background:#0a100d;border:1px solid var(--line);
+    border-radius:8px;padding:14px 15px;overflow:auto;font-size:12.5px;color:var(--ink)}
+  .detail pre .c{color:var(--ink-faint)}
+  .detail pre .g{color:var(--phos)}
+  .detail pre .a{color:var(--amber)}
+
+  /* code annotate block */
+  pre.code{background:#0a100d;border:1px solid var(--line);border-radius:10px;
+    padding:18px 18px;overflow:auto;font-size:13px;line-height:1.7;margin:18px 0 0}
+  pre.code .c{color:var(--ink-faint)}
+  pre.code .g{color:var(--phos)}
+  pre.code .a{color:var(--amber)}
+  pre.code .r{color:var(--laser)}
+  pre.code .kw{color:#8fd0ff}
+
+  /* pin table */
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--ink-faint);font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+  td code{background:none;border:none;padding:0}
+  tr td:first-child{color:var(--phos);width:78px}
+  .role-out{color:var(--ink)}
+  .pin-grp{color:var(--ink-faint);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    padding-top:18px}
+
+  /* gotchas */
+  .gotchas{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.gotchas{grid-template-columns:1fr}}
+  .got{border:1px solid var(--line);border-radius:10px;padding:16px 17px;background:var(--panel-2)}
+  .got h4{margin:0 0 6px;font-family:var(--sans);font-size:14.5px;color:var(--amber)}
+  .got p{margin:0;font-size:13px;color:var(--ink-dim)}
+
+  footer{border-top:1px solid var(--line);padding:30px 0 60px;color:var(--ink-faint);font-size:12px}
+  .tunables{font-size:11.5px;color:var(--ink-faint);margin-top:18px;border-top:1px dashed var(--line);
+    padding-top:14px}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">PIC16F877A · MPLAB XC8 · 20 MHz</p>
+        <h1>Scanning Laser Turret
+          <span class="sub">How the firmware actually works — one loop, no interrupts, ~50 frames a second.</span>
+        </h1>
+      </div>
+
+      <div class="scope" id="scope">
+        <svg viewBox="0 0 400 260" aria-label="Live turret loop simulation">
+          <defs>
+            <radialGradient id="glow" cx="50%" cy="100%" r="80%">
+              <stop offset="0%" stop-color="#46e08a" stop-opacity="0.10"/>
+              <stop offset="100%" stop-color="#46e08a" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <!-- range rings -->
+          <g stroke="#1f2c28" fill="none">
+            <path d="M40 230 A160 160 0 0 1 360 230"/>
+            <path d="M93 230 A107 107 0 0 1 307 230"/>
+            <path d="M147 230 A53 53 0 0 1 253 230"/>
+          </g>
+          <line x1="200" y1="230" x2="200" y2="58" stroke="#1f2c28"/>
+          <rect x="40" y="230" width="320" height="2" fill="#243430"/>
+          <!-- detect band -->
+          <path id="detectBand" d="" fill="url(#glow)"></path>
+          <!-- sweep beam -->
+          <line id="beam" x1="200" y1="230" x2="200" y2="70" stroke="#46e08a"
+                stroke-width="2" stroke-opacity="0.85"/>
+          <!-- laser -->
+          <line id="laser" x1="200" y1="230" x2="200" y2="70" stroke="#ff3b30"
+                stroke-width="2.4" stroke-opacity="0" />
+          <!-- target -->
+          <circle id="target" cx="270" cy="120" r="8" fill="#0d1311"
+                  stroke="#f5c518" stroke-width="2"/>
+          <!-- turret base -->
+          <rect x="184" y="226" width="32" height="14" rx="3" fill="#1a2420" stroke="#2c3d37"/>
+          <circle cx="200" cy="230" r="6" fill="#46e08a"/>
+          <text x="200" y="252" text-anchor="middle" fill="#566860" font-size="9"
+                font-family="ui-monospace,monospace" letter-spacing="2">TURRET</text>
+        </svg>
+
+        <div class="scope-foot">
+          <div class="leds">
+            <span class="led" id="ledGreenLbl"><span class="dot green" id="ledGreen"></span>Run</span>
+            <span class="led" id="ledAmberLbl"><span class="dot amber" id="ledAmber"></span>Stop</span>
+          </div>
+          <div class="readout" id="readout"><b>RUNNING</b> · sweeping</div>
+          <button class="btn" id="toggle">Press button</button>
+        </div>
+        <p class="hint">Click anywhere in the scope to move the target. The button polls each frame, exactly like the firmware.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="bigidea">
+    <div class="sec-head"><span class="num">01</span><h2>The decision everything hangs on</h2></div>
+    <div class="callout">
+      <p class="tag">Why there are no interrupts</p>
+      <p style="margin:0">An earlier version drove the servo from a Timer0 interrupt firing every 100&nbsp;µs. That ISR kept interrupting the HC-SR04 echo measurement on Timer1 mid-count — which is what produced the stuck 5&nbsp;cm reading. The real fix wasn't a patch. It was deleting interrupts entirely.</p>
+    </div>
+    <p>So the whole program is <strong>one cooperative loop</strong>. It runs top to bottom about 50 times a second: poll the button, then either hold still or take one sweep-and-sense step. Because nothing can preempt anything else, nothing can corrupt the echo timing. When you read <code>main.c</code>, there's no ISR to jump to — <code>main()</code> is the entire story.</p>
+  </section>
+
+  <section id="loop">
+    <div class="sec-head"><span class="num">02</span><h2>One frame, step by step</h2></div>
+    <p class="lede">Every pass through <code>while(1)</code> is one frame. Tap a step to see what it does.</p>
+    <div class="frame" style="margin-top:24px">
+      <div class="steps" id="steps">
+        <button class="step active" data-i="0"><span class="k">A</span><span class="t"><b>Poll the button</b>Edge-detect a press, toggle RUN/STOP</span></button>
+        <button class="step stop" data-i="1"><span class="k">B</span><span class="t"><b>If stopped → hold</b>LEDs flip, outputs off, servo held steady, skip frame</span></button>
+        <button class="step" data-i="2"><span class="k">C</span><span class="t"><b>If running → pulse + range</b>Hold the servo, then read distance</span></button>
+        <button class="step" data-i="3"><span class="k">D</span><span class="t"><b>Detect or clear</b>Hysteresis decides target vs no-target</span></button>
+        <button class="step" data-i="4"><span class="k">E</span><span class="t"><b>Fire or sweep</b>Freeze + fire on target, else step the angle</span></button>
+      </div>
+      <div class="detail" id="detail"></div>
+    </div>
+  </section>
+
+  <section id="range">
+    <div class="sec-head"><span class="num">03</span><h2>Reading distance — <code>read_cm()</code></h2></div>
+    <p>The classic HC-SR04 handshake, but the guards are the interesting part. A 10&nbsp;µs pulse on <code>TRIG</code> kicks off the burst; then it waits for <code>ECHO</code> to rise, times how long it stays high on Timer1, and converts ticks to centimetres. The two early <code>return 0</code>s are escape hatches so a dead or out-of-range sensor can never freeze the loop.</p>
+    <pre class="code"><span class="c">/* 10 µs trigger, then time the echo pulse on Timer1 */</span>
+<span class="kw">unsigned int</span> read_cm(<span class="kw">void</span>) {
+    <span class="kw">unsigned int</span> g, ticks;
+    <span class="kw">unsigned int</span> limit = MAX_RANGE_CM * <span class="g">72</span>;   <span class="c">// ← range cutoff in ticks</span>
+
+    TRIG = 0; __delay_us(2);
+    TRIG = 1; __delay_us(10); TRIG = 0;                <span class="c">// fire the 10 µs ping</span>
+
+    g = 0; <span class="kw">while</span> (ECHO == 0) { <span class="kw">if</span> (++g &gt; 8000) <span class="r">return 0</span>; }  <span class="c">// echo never came → bail</span>
+    TMR1H = 0; TMR1L = 0; TMR1ON = 1;                  <span class="c">// start the clock</span>
+    <span class="kw">while</span> (ECHO == 1) {
+        ticks = (TMR1H &lt;&lt; 8) | TMR1L;
+        <span class="kw">if</span> (ticks &gt; limit) { TMR1ON = 0; <span class="r">return 0</span>; }  <span class="c">// too far → bail</span>
+    }
+    TMR1ON = 0;
+    <span class="kw">return</span> ((TMR1H &lt;&lt; 8) | TMR1L) / <span class="g">72</span>;             <span class="c">// ticks → cm</span>
+}</pre>
+    <div class="callout" style="border-left-color:var(--phos)">
+      <p class="tag" style="color:var(--phos)">The /72, not /58</p>
+      <p style="margin:0">The usual textbook divisor is 58, which assumes a 1&nbsp;µs Timer1 tick. You don't have that. At a 20&nbsp;MHz crystal with Timer1's 1:4 prescaler the tick is shorter, so the correct centimetre divisor is <strong>72</strong>. Using 58 here is exactly what skews the reading.</p>
+    </div>
+  </section>
+
+  <section id="servo">
+    <div class="sec-head"><span class="num">04</span><h2>Moving the servo without a timer interrupt</h2></div>
+    <p>A hobby servo wants a pulse every ~20&nbsp;ms, and the pulse <em>width</em> sets the angle: roughly 1&nbsp;ms for 0° up to 2&nbsp;ms for 180°. <code>servo_pulse(us)</code> builds one pulse by hand — drive the pin high, wait <code>us</code> microseconds against Timer1, drive it low. The <code>__delay_ms(16)</code> at the end of each frame spaces those pulses out to roughly the right rate.</p>
+    <p>The current angle lives in <code>servo_us</code>, scaled between your <code>CLOSE_US</code> (0°) and <code>OPEN_US</code> (180°) endpoints. Crucially, <strong>even when stopped the firmware keeps sending the held pulse</strong> — that's why the turret freezes stiffly in place instead of going limp.</p>
+  </section>
+
+  <section id="hysteresis">
+    <div class="sec-head"><span class="num">05</span><h2>Why it doesn't twitch — target hysteresis</h2></div>
+    <p>The detect logic is deliberately not a bare <code>if/else</code>. Once a target is seen, it must read <strong>clear for several frames in a row</strong> — counted by <code>clear_count</code> against <code>CLEAR_FRAMES</code> — before sweeping resumes. One noisy reading can't snap the turret back into sweeping for a single frame and then re-lock. It's the same idea as the button debounce, applied to the target.</p>
+    <pre class="code"><span class="kw">if</span> (cm &gt; 0 &amp;&amp; cm &lt;= DETECT_CM) { detected = 1; clear_count = 0; }
+<span class="kw">else if</span> (detected)         { <span class="kw">if</span> (++clear_count &gt;= CLEAR_FRAMES) detected = 0; }</pre>
+  </section>
+
+  <section id="pins">
+    <div class="sec-head"><span class="num">06</span><h2>Pin map</h2></div>
+    <p class="lede">Peripherals on PORTB, controls on PORTD. <strong>RB6 and RB7 stay empty</strong> — those are the PICkit's programming lines.</p>
+    <table>
+      <thead><tr><th>Pin</th><th>Role</th><th>Direction / note</th></tr></thead>
+      <tbody>
+        <tr><td>RB0</td><td class="role-out">Servo signal</td><td>output · software PWM</td></tr>
+        <tr><td>RB1</td><td class="role-out">Laser (KY-008)</td><td>output · via 2N2222</td></tr>
+        <tr><td>RB2</td><td class="role-out">Buzzer</td><td>output · via 2N2222</td></tr>
+        <tr><td>RB3</td><td class="role-out">HC-SR04 Trig</td><td>output</td></tr>
+        <tr><td>RB4</td><td class="role-out">HC-SR04 Echo</td><td>input</td></tr>
+        <tr><td>RD0</td><td class="role-out">Green LED</td><td>output · RUN indicator</td></tr>
+        <tr><td>RD1</td><td class="role-out">Yellow LED</td><td>output · STOP indicator <span style="color:var(--ink-faint)">(named RED_LED in code)</span></td></tr>
+        <tr><td>RD2</td><td class="role-out">Button</td><td>input · 10 kΩ pull-up, pressed = low</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="gotchas">
+    <div class="sec-head"><span class="num">07</span><h2>Things that bite</h2></div>
+    <div class="gotchas">
+      <div class="got"><h4>Servo brownout</h4><p>The servo is the #1 cause of resets. Give it its own 5&nbsp;V rail, a shared ground back to the PIC, and a 470&nbsp;µF cap across its supply. A weak rail makes it judder instead of move.</p></div>
+      <div class="got"><h4>Echo returns 0 → suspect wiring</h4><p>When echo reads zero, check ground and the Trig/Echo wiring before touching code. Swap Trig/Echo in wires <em>or</em> code, never both — they cancel out.</p></div>
+      <div class="got"><h4>Stay off RB6 / RB7</h4><p>Those carry the PICkit programming signals. Anything wired there fights the programmer.</p></div>
+      <div class="got"><h4>The /72 divisor</h4><p>If distances read consistently wrong, confirm it's <code>/72</code> and Timer1 is on the 1:4 prescaler — not the /58 you'll find in tutorials.</p></div>
+    </div>
+    <p class="tunables">Numbers shown in the simulation above are illustrative. The real values — <code>DETECT_CM</code>, <code>MAX_RANGE_CM</code>, <code>SWEEP_STEP</code>, <code>CLEAR_FRAMES</code>, <code>CLOSE_US</code>, <code>OPEN_US</code>, <code>CENTER_US</code> — are the <code>#define</code>s at the top of your <code>main.c</code>; tune behaviour there.</p>
+  </section>
+</main>
+
+<footer><div class="wrap">Scanning Laser Turret · build reference for hardware bring-up · green = running, yellow = stopped.</div></footer>
+
+<script>
+(function(){
+  "use strict";
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- live simulation (mirrors the firmware loop) ---------- */
+  const beam   = document.getElementById("beam");
+  const laser  = document.getElementById("laser");
+  const target = document.getElementById("target");
+  const band   = document.getElementById("detectBand");
+  const ledG   = document.getElementById("ledGreen");
+  const ledA   = document.getElementById("ledAmber");
+  const ledGL  = document.getElementById("ledGreenLbl");
+  const ledAL  = document.getElementById("ledAmberLbl");
+  const readout= document.getElementById("readout");
+  const toggle = document.getElementById("toggle");
+  const scopeSvg = document.querySelector("#scope svg");
+
+  const CX=200, CY=230, R=158;          // turret pivot + beam length
+  const DETECT_R = 118;                  // detect band radius (illustrative DETECT_CM)
+  const ANGLE_TOL = 9;                   // beam must point within this many deg of target
+  const SWEEP_STEP = 1.4;                // deg per frame
+  const CLEAR_FRAMES = 18;
+
+  // draw the detect band as a filled wedge of the lower semicircle
+  band.setAttribute("d",
+    `M ${CX} ${CY} L ${CX-DETECT_R} ${CY} A ${DETECT_R} ${DETECT_R} 0 0 1 ${CX+DETECT_R} ${CY} Z`);
+
+  // state — same variables the firmware keeps
+  let running = true;
+  let angle = 90, dir = SWEEP_STEP;      // 0..180, swept
+  let detected = false, clearCount = 0;
+  let heldAngle = 90;                     // servo_us equivalent (held position)
+  let tAngle = 52, tDist = 96;            // target polar position
+
+  function polar(angDeg, dist){
+    const a = (180 - angDeg) * Math.PI/180; // 0deg = right, 180deg = left, lower half
+    return { x: CX + Math.cos(a)*dist, y: CY - Math.sin(a)*dist };
+  }
+  function placeTarget(){
+    const p = polar(tAngle, tDist);
+    target.setAttribute("cx", p.x.toFixed(1));
+    target.setAttribute("cy", p.y.toFixed(1));
+  }
+  function drawBeam(el, angDeg, len){
+    const p = polar(angDeg, len);
+    el.setAttribute("x2", p.x.toFixed(1));
+    el.setAttribute("y2", p.y.toFixed(1));
+  }
+  placeTarget();
+
+  function setLeds(){
+    ledG.classList.toggle("on", running);
+    ledA.classList.toggle("on", !running);
+    ledGL.classList.toggle("active", running);
+    ledAL.classList.toggle("active", !running);
+    toggle.classList.toggle("stopped", !running);
+    toggle.textContent = running ? "Press button" : "Press button";
+  }
+
+  function frame(){
+    if(running){
+      // running: green on
+      // detection — beam pointing near target AND target inside detect band
+      const onTarget = Math.abs(angle - tAngle) < ANGLE_TOL && tDist <= DETECT_R;
+      if(onTarget){ detected = true; clearCount = 0; }
+      else if(detected){ if(++clearCount >= CLEAR_FRAMES) detected = false; }
+
+      if(detected){
+        // freeze + fire
+        laser.setAttribute("stroke-opacity","0.95");
+        drawBeam(laser, angle, tDist);
+        drawBeam(beam, angle, R);
+        beam.setAttribute("stroke-opacity","0.25");
+        readout.className="readout";
+        readout.innerHTML = "<b>TARGET</b> · laser + buzzer firing";
+      } else {
+        // sweep
+        laser.setAttribute("stroke-opacity","0");
+        beam.setAttribute("stroke-opacity","0.85");
+        angle += dir;
+        if(angle >= 180){ angle = 180; dir = -SWEEP_STEP; }
+        else if(angle <= 0){ angle = 0; dir = SWEEP_STEP; }
+        drawBeam(beam, angle, R);
+        readout.className="readout";
+        readout.innerHTML = "<b>RUNNING</b> · sweeping " + Math.round(angle) + "&deg;";
+      }
+      heldAngle = angle;
+    } else {
+      // stopped: hold position, outputs off, amber on
+      laser.setAttribute("stroke-opacity","0");
+      beam.setAttribute("stroke-opacity","0.4");
+      drawBeam(beam, heldAngle, R);
+      readout.className="readout stopped";
+      readout.innerHTML = "<b>STOPPED</b> · servo held, outputs off";
+    }
+    setLeds();
+  }
+
+  // run the loop at ~firmware frame rate
+  let timer=null;
+  function start(){ if(timer) return; timer = setInterval(frame, reduce?120:34); }
+  setLeds(); frame(); start();
+
+  toggle.addEventListener("click", ()=>{ running = !running; frame(); });
+
+  // click in scope to move target (like repositioning the real object)
+  scopeSvg.addEventListener("click",(e)=>{
+    const pt = scopeSvg.createSVGPoint();
+    pt.x = e.clientX; pt.y = e.clientY;
+    const loc = pt.matrixTransform(scopeSvg.getScreenCTM().inverse());
+    const dx = loc.x - CX, dy = CY - loc.y;
+    if(dy < 4) return;                       // ignore clicks below the baseline
+    const dist = Math.min(Math.hypot(dx,dy), R-6);
+    let ang = 180 - Math.atan2(dy,dx)*180/Math.PI;
+    ang = Math.max(2, Math.min(178, ang));
+    tAngle = ang; tDist = dist;
+    detected = false; clearCount = 0;
+    placeTarget();
+    frame();
+  });
+
+  /* ---------- frame stepper detail panel ---------- */
+  const detail = document.getElementById("detail");
+  const steps = Array.from(document.querySelectorAll(".step"));
+  const data = [
+    { h:"A · Poll the button", m:"runs every frame, first thing",
+      body:"Read the pin, then look for the rising edge of a press. The <code>&amp;&amp; !btn_prev</code> means it only toggles on the instant of the press, so holding the button can't flip the state hundreds of times. The 30 ms delay is debounce.",
+      code:`<span class="c">// pressed reads LOW thanks to the 10k pull-up</span>
+btn_now = (BUTTON == 0);
+<span class="g">if</span> (btn_now &amp;&amp; !btn_prev) { running = !running; __delay_ms(30); }
+btn_prev = btn_now;` },
+    { h:"B · If stopped → hold", m:"the early-exit branch",
+      body:"Yellow LED on, green off, laser and buzzer off. It still pulses the servo at its last angle so it holds <b>stiffly</b> rather than drooping, then <code>continue</code> skips the rest of the frame.",
+      code:`<span class="a">if</span> (!running) {
+    RED_LED = 1; GREEN_LED = 0;        <span class="c">// yellow on (named RED_LED)</span>
+    LASER = 0; BUZZER = 0;
+    servo_pulse(servo_us);            <span class="c">// hold position</span>
+    __delay_ms(16);
+    <span class="a">continue</span>;
+}` },
+    { h:"C · Running → pulse + range", m:"only reached when running",
+      body:"Green LED on, send one servo pulse to maintain the angle, then take a fresh distance reading with <code>read_cm()</code>. Pulse first, sense second — the servo current spike has settled before timing the echo.",
+      code:`RED_LED = 0; GREEN_LED = 1;
+servo_pulse(servo_us);
+<span class="kw">unsigned int</span> cm = read_cm();` },
+    { h:"D · Detect or clear", m:"hysteresis state machine",
+      body:"A valid in-range reading sets <code>detected</code> immediately and resets the clear counter. Losing the target doesn't instantly clear it — it has to stay clear for <code>CLEAR_FRAMES</code> frames first. That stops one bad reading from making the turret twitch.",
+      code:`<span class="g">if</span> (cm &gt; 0 &amp;&amp; cm &lt;= DETECT_CM) { detected = 1; clear_count = 0; }
+<span class="g">else if</span> (detected) { <span class="g">if</span> (++clear_count &gt;= CLEAR_FRAMES) detected = 0; }` },
+    { h:"E · Fire or sweep", m:"the action half of the frame",
+      body:"If a target is locked: laser and buzzer on, angle frozen. Otherwise: outputs off, nudge the angle by <code>dir</code>, bounce off the 0° and 180° limits, and recompute <code>servo_us</code> for the new angle.",
+      code:`<span class="g">if</span> (detected) {
+    LASER = 1; BUZZER = 1;            <span class="c">// hold + fire</span>
+    __delay_ms(16);
+} <span class="g">else</span> {
+    LASER = 0; BUZZER = 0;
+    angle += dir;
+    <span class="g">if</span> (angle &gt;= 180) { angle = 180; dir = -SWEEP_STEP; }
+    <span class="g">else if</span> (angle &lt;= 0) { angle = 0; dir = SWEEP_STEP; }
+    servo_us = CLOSE_US + (long)(OPEN_US-CLOSE_US)*angle/180;
+    __delay_ms(16);
+}` }
+  ];
+  function showStep(i){
+    steps.forEach(s=>s.classList.toggle("active", +s.dataset.i===i));
+    const d = data[i];
+    detail.innerHTML = `<h3>${d.h}</h3><p class="micro">${d.m}</p>`+
+      `<p style="font-size:14px;color:var(--ink-dim);margin:0">${d.body}</p>`+
+      `<pre>${d.code}</pre>`;
+  }
+  steps.forEach(s=>{
+    s.addEventListener("click",()=>showStep(+s.dataset.i));
+  });
+  showStep(0);
+})();
+</script>
+</body>
+</html>

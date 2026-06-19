@@ -1,0 +1,22 @@
+# MPLAB X / XC8 build output — regenerated on every build, never commit
+build/
+dist/
+debug/
+*.o
+*.d
+*.p1
+*.sym
+*.lst
+*.map
+*.cof
+*.elf
+*.hex
+
+# MPLAB X IDE state
+.generated_files/
+*.mk
+nbproject/private/
+
+# OS cruft
+.DS_Store
+Thumbs.db
